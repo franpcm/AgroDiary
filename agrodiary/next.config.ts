@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { resolve } from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -11,6 +12,9 @@ const nextConfig: NextConfig = {
     "mammoth",
     "word-extractor",
   ],
+  turbopack: {
+    root: resolve(__dirname),
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",

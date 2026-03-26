@@ -11,6 +11,13 @@ import {
 
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 const TIPO_COLORS: Record<string, string> = {
   riego: "#3B82F6",
   tratamiento_fitosanitario: "#8B5CF6",
@@ -47,8 +54,8 @@ export default function CalendarioPage() {
 
   const fetchEntries = useCallback(async () => {
     // Fetch entries for the current month (and a bit of padding)
-    const desde = new Date(year, month - 1, 1).toISOString().split("T")[0];
-    const hasta = new Date(year, month + 2, 0).toISOString().split("T")[0];
+    const desde = formatLocalDate(new Date(year, month - 1, 1));
+    const hasta = formatLocalDate(new Date(year, month + 2, 0));
     const params = new URLSearchParams({ desde, hasta, limit: "500" });
     const res = await fetch(`/api/entries?${params}`);
     const data = await res.json();
@@ -66,7 +73,7 @@ export default function CalendarioPage() {
   let startDow = firstDay.getDay() - 1; // Monday = 0
   if (startDow < 0) startDow = 6;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = formatLocalDate(new Date());
 
   const filteredEntries = filterCultivo
     ? entries.filter((e) => e.cultivo === filterCultivo)
@@ -87,7 +94,7 @@ export default function CalendarioPage() {
   const prevLastDay = new Date(year, month, 0).getDate();
   for (let i = startDow - 1; i >= 0; i--) {
     const d = prevLastDay - i;
-    const date = new Date(year, month - 1, d).toISOString().split("T")[0];
+    const date = formatLocalDate(new Date(year, month - 1, d));
     calendarDays.push({
       date,
       day: d,
@@ -99,7 +106,7 @@ export default function CalendarioPage() {
 
   // Current month
   for (let d = 1; d <= lastDay.getDate(); d++) {
-    const date = new Date(year, month, d).toISOString().split("T")[0];
+    const date = formatLocalDate(new Date(year, month, d));
     calendarDays.push({
       date,
       day: d,
@@ -112,7 +119,7 @@ export default function CalendarioPage() {
   // Next month padding
   const remaining = 42 - calendarDays.length;
   for (let d = 1; d <= remaining; d++) {
-    const date = new Date(year, month + 1, d).toISOString().split("T")[0];
+    const date = formatLocalDate(new Date(year, month + 1, d));
     calendarDays.push({
       date,
       day: d,

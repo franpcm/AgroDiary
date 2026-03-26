@@ -8,14 +8,22 @@ export interface Usuario {
   nombre: string;
   email: string;
   avatar_color: string; // hex color
-  rol: 'admin' | 'editor' | 'viewer';
+  rol: "admin" | "editor" | "viewer";
   activo: boolean;
   created_at: string;
 }
 
 export const AVATAR_COLORS = [
-  '#16a34a', '#2563eb', '#9333ea', '#dc2626', '#ea580c',
-  '#0891b2', '#4f46e5', '#c026d3', '#65a30d', '#0d9488',
+  "#16a34a",
+  "#2563eb",
+  "#9333ea",
+  "#dc2626",
+  "#ea580c",
+  "#0891b2",
+  "#4f46e5",
+  "#c026d3",
+  "#65a30d",
+  "#0d9488",
 ];
 
 // ---- Parcelas ----
@@ -31,19 +39,19 @@ export interface Parcela {
   created_at: string;
 }
 
-export type TipoCultivo = 'pistacho' | 'viñedo' | 'olivo' | 'otro';
+export type TipoCultivo = "pistacho" | "viñedo" | "olivo" | "otro";
 
 export type TipoVariedad =
-  | 'Tempranillo'
-  | 'Cabernet Sauvignon'
-  | 'Airén'
-  | 'Sauvignon Blanc'
-  | 'Syrah'
-  | 'Kerman'
-  | 'Peter'
-  | 'Picual'
-  | 'Arbequina'
-  | 'Hojiblanca'
+  | "Tempranillo"
+  | "Cabernet Sauvignon"
+  | "Airén"
+  | "Sauvignon Blanc"
+  | "Syrah"
+  | "Kerman"
+  | "Peter"
+  | "Picual"
+  | "Arbequina"
+  | "Hojiblanca"
   | string;
 
 // ---- Entradas del diario ----
@@ -66,10 +74,18 @@ export interface EntradaDiario {
   valoracion?: 1 | 2 | 3 | 4 | 5;
   fotos?: string; // JSON array of URLs
   notas?: string;
+  // Parte de Trabajo: auto-captura
+  hora_inicio?: string; // HH:MM:SS timestamp al iniciar registro
+  hora_fin?: string; // HH:MM:SS timestamp al guardar
+  gps_lat?: number; // Latitud GPS del técnico
+  gps_lng?: number; // Longitud GPS del técnico
+  gps_accuracy?: number; // Precisión GPS en metros
   created_at: string;
   updated_at: string;
   // Joined data
   comentarios_count?: number;
+  archivos_count?: number;
+  primera_foto?: string; // URL of first photo thumbnail
   archivos?: ArchivoMedia[];
 }
 
@@ -102,61 +118,87 @@ export interface ArchivoMedia {
   id: string;
   entrada_id: string;
   usuario_id: string;
-  tipo: 'imagen' | 'video';
+  tipo: "imagen" | "video";
   nombre: string;
   url: string;
   tamano: number; // bytes
   created_at: string;
 }
 
+// ---- Productos y Maquinaria ----
+export interface ProductoMaquinaria {
+  id: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  notas?: string;
+  created_at: string;
+}
+
+export type CategoriaProducto =
+  | "fitosanitario"
+  | "fertilizante"
+  | "maquinaria"
+  | "herramienta"
+  | "semilla"
+  | "otro";
+
+export const CATEGORIA_PRODUCTO_LABELS: Record<CategoriaProducto, string> = {
+  fitosanitario: "🧪 Fitosanitario",
+  fertilizante: "🌱 Fertilizante",
+  maquinaria: "🚜 Maquinaria",
+  herramienta: "🔧 Herramienta",
+  semilla: "🌾 Semilla",
+  otro: "📦 Otro",
+};
+
 export type TipoActividad =
-  | 'riego'
-  | 'tratamiento_fitosanitario'
-  | 'poda'
-  | 'abonado'
-  | 'cosecha'
-  | 'laboreo'
-  | 'siembra_plantacion'
-  | 'injerto'
-  | 'analisis_suelo'
-  | 'analisis_foliar'
-  | 'observacion'
-  | 'mantenimiento_infraestructura'
-  | 'otro';
+  | "riego"
+  | "tratamiento_fitosanitario"
+  | "poda"
+  | "abonado"
+  | "cosecha"
+  | "laboreo"
+  | "siembra_plantacion"
+  | "injerto"
+  | "analisis_suelo"
+  | "analisis_foliar"
+  | "observacion"
+  | "mantenimiento_infraestructura"
+  | "otro";
 
 export const ACTIVIDAD_LABELS: Record<TipoActividad, string> = {
-  riego: '💧 Riego',
-  tratamiento_fitosanitario: '🧪 Tratamiento Fitosanitario',
-  poda: '✂️ Poda',
-  abonado: '🌱 Abonado / Fertilización',
-  cosecha: '🍇 Cosecha / Recolección',
-  laboreo: '🚜 Laboreo',
-  siembra_plantacion: '🌿 Siembra / Plantación',
-  injerto: '🔗 Injerto',
-  analisis_suelo: '🔬 Análisis de Suelo',
-  analisis_foliar: '🍃 Análisis Foliar',
-  observacion: '👁️ Observación / Inspección',
-  mantenimiento_infraestructura: '🔧 Mantenimiento Infraestructura',
-  otro: '📝 Otro',
+  riego: "💧 Riego",
+  tratamiento_fitosanitario: "🧪 Tratamiento Fitosanitario",
+  poda: "✂️ Poda",
+  abonado: "🌱 Abonado / Fertilización",
+  cosecha: "🍇 Cosecha / Recolección",
+  laboreo: "🚜 Laboreo",
+  siembra_plantacion: "🌿 Siembra / Plantación",
+  injerto: "🔗 Injerto",
+  analisis_suelo: "🔬 Análisis de Suelo",
+  analisis_foliar: "🍃 Análisis Foliar",
+  observacion: "👁️ Observación / Inspección",
+  mantenimiento_infraestructura: "🔧 Mantenimiento Infraestructura",
+  otro: "📝 Otro",
 };
 
 export const CULTIVO_LABELS: Record<TipoCultivo, string> = {
-  pistacho: '🌰 Pistacho',
-  viñedo: '🍇 Viñedo',
-  olivo: '🫒 Olivo',
-  otro: '🌾 Otro',
+  pistacho: "🌰 Pistacho",
+  viñedo: "🍇 Viñedo",
+  olivo: "🫒 Olivo",
+  otro: "�️ Infraestructura / Otro",
 };
 
 export const CULTIVO_COLORS: Record<TipoCultivo, string> = {
-  pistacho: '#097138',
-  viñedo: '#7B1FA2',
-  olivo: '#827717',
-  otro: '#795548',
+  pistacho: "#097138",
+  viñedo: "#7B1FA2",
+  olivo: "#827717",
+  otro: "#546E7A",
 };
 
 export interface MensajeChat {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
 }

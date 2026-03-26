@@ -97,6 +97,15 @@ function initializeDb(db: Database.Database) {
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
     );
 
+    -- Productos y maquinaria (catálogo)
+    CREATE TABLE IF NOT EXISTS productos_maquinaria (
+      id TEXT PRIMARY KEY,
+      nombre TEXT NOT NULL UNIQUE,
+      categoria TEXT NOT NULL DEFAULT 'otro' CHECK(categoria IN ('fitosanitario', 'fertilizante', 'maquinaria', 'herramienta', 'semilla', 'otro')),
+      notas TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     -- Archivos multimedia
     CREATE TABLE IF NOT EXISTS archivos_media (
       id TEXT PRIMARY KEY,
@@ -160,6 +169,8 @@ function initializeDb(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_archivos_entrada ON archivos_media(entrada_id);
     CREATE INDEX IF NOT EXISTS idx_rag_chunks_doc ON rag_chunks(documento_id);
     CREATE INDEX IF NOT EXISTS idx_rag_chunks_fuente ON rag_chunks(fuente_tipo, fuente_id);
+    CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos_maquinaria(nombre);
+    CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos_maquinaria(categoria);
   `);
 
   // Migrate: add usuario_id column if missing (for existing databases)
@@ -190,6 +201,40 @@ function initializeDb(db: Database.Database) {
     /* column already exists */
   }
 
+  // Migrate: add Parte de Trabajo columns (hora_inicio, hora_fin, gps_lat, gps_lng, gps_accuracy)
+  try {
+    const cols = db.prepare("PRAGMA table_info(entradas_diario)").all() as {
+      name: string;
+    }[];
+    if (!cols.find((c) => c.name === "hora_inicio")) {
+      db.exec(
+        "ALTER TABLE entradas_diario ADD COLUMN hora_inicio TEXT DEFAULT ''",
+      );
+    }
+    if (!cols.find((c) => c.name === "hora_fin")) {
+      db.exec(
+        "ALTER TABLE entradas_diario ADD COLUMN hora_fin TEXT DEFAULT ''",
+      );
+    }
+    if (!cols.find((c) => c.name === "gps_lat")) {
+      db.exec(
+        "ALTER TABLE entradas_diario ADD COLUMN gps_lat REAL DEFAULT NULL",
+      );
+    }
+    if (!cols.find((c) => c.name === "gps_lng")) {
+      db.exec(
+        "ALTER TABLE entradas_diario ADD COLUMN gps_lng REAL DEFAULT NULL",
+      );
+    }
+    if (!cols.find((c) => c.name === "gps_accuracy")) {
+      db.exec(
+        "ALTER TABLE entradas_diario ADD COLUMN gps_accuracy REAL DEFAULT NULL",
+      );
+    }
+  } catch {
+    /* columns already exist */
+  }
+
   // Seed with default users if empty
   const userCount = db
     .prepare("SELECT COUNT(*) as count FROM usuarios")
@@ -204,6 +249,109 @@ function initializeDb(db: Database.Database) {
   };
   if (count.count === 0) {
     seedParcelas(db);
+  }
+
+  // Migrate: add Nave and Caseta if they don't exist
+  try {
+    const { v4: uuid } = require("uuid");
+    const naveExists = db
+      .prepare("SELECT id FROM parcelas WHERE nombre = 'Nave'")
+      .get();
+    if (!naveExists) {
+      db.prepare(
+        "INSERT INTO parcelas (id, nombre, cultivo, variedad, superficie_ha, sector, notas) VALUES (?, 'Nave', 'otro', 'Infraestructura', 0, 'NAVE', 'Almacén de material y maquinaria. Zona principal de mantenimiento.')",
+      ).run(uuid());
+    }
+    const casetaExists = db
+      .prepare("SELECT id FROM parcelas WHERE nombre = 'Caseta'")
+      .get();
+    if (!casetaExists) {
+      db.prepare(
+        "INSERT INTO parcelas (id, nombre, cultivo, variedad, superficie_ha, sector, notas) VALUES (?, 'Caseta', 'otro', 'Infraestructura', 0, 'CASETA', '')",
+      ).run(uuid());
+    }
+  } catch (e) {
+    console.error("Error migrando Nave/Caseta:", e);
+  }
+
+  // Migrate: extract existing productos_usados into productos_maquinaria catalog
+  try {
+    const { v4: uuid } = require("uuid");
+    const prodCount = db
+      .prepare("SELECT COUNT(*) as count FROM productos_maquinaria")
+      .get() as { count: number };
+    if (prodCount.count === 0) {
+      // Extract unique product names from existing entries
+      const entries = db
+        .prepare(
+          "SELECT DISTINCT productos_usados FROM entradas_diario WHERE productos_usados != '' AND productos_usados IS NOT NULL",
+        )
+        .all() as { productos_usados: string }[];
+
+      const uniqueProducts = new Set<string>();
+      for (const e of entries) {
+        // Split by comma, semicolon, or " + " and trim
+        const parts = e.productos_usados
+          .split(/[,;]|\s*\+\s*/)
+          .map((s: string) => s.trim())
+          .filter((s: string) => s.length > 0);
+        for (const p of parts) uniqueProducts.add(p);
+      }
+
+      if (uniqueProducts.size > 0) {
+        const stmt = db.prepare(
+          "INSERT OR IGNORE INTO productos_maquinaria (id, nombre, categoria) VALUES (?, ?, ?)",
+        );
+        const insertAll = db.transaction(() => {
+          for (const name of uniqueProducts) {
+            // Auto-detect category by keywords
+            const lower = name.toLowerCase();
+            let cat = "otro";
+            if (
+              lower.includes("tractor") ||
+              lower.includes("cosechadora") ||
+              lower.includes("atomizador") ||
+              lower.includes("pulverizador") ||
+              lower.includes("desbrozadora") ||
+              lower.includes("arado") ||
+              lower.includes("remolque") ||
+              lower.includes("cuba")
+            ) {
+              cat = "maquinaria";
+            } else if (
+              lower.includes("cobre") ||
+              lower.includes("azufre") ||
+              lower.includes("fungicida") ||
+              lower.includes("insecticida") ||
+              lower.includes("herbicida") ||
+              lower.includes("acaricida") ||
+              lower.includes("fitosanitario")
+            ) {
+              cat = "fitosanitario";
+            } else if (
+              lower.includes("abono") ||
+              lower.includes("fertiliz") ||
+              lower.includes("npk") ||
+              lower.includes("urea") ||
+              lower.includes("foliar")
+            ) {
+              cat = "fertilizante";
+            } else if (
+              lower.includes("tijera") ||
+              lower.includes("motosierra") ||
+              lower.includes("azada") ||
+              lower.includes("pala")
+            ) {
+              cat = "herramienta";
+            }
+            stmt.run(uuid(), name, cat);
+          }
+        });
+        insertAll();
+      }
+    }
+  } catch (e) {
+    console.error("Error migrando productos:", e);
   }
 }
 
@@ -352,6 +500,23 @@ function seedParcelas(db: Database.Database) {
       variedad: "Por determinar",
       superficie_ha: 0,
       sector: "OL",
+    },
+    // Infraestructuras
+    {
+      id: uuid(),
+      nombre: "Nave",
+      cultivo: "otro",
+      variedad: "Infraestructura",
+      superficie_ha: 0,
+      sector: "NAVE",
+    },
+    {
+      id: uuid(),
+      nombre: "Caseta",
+      cultivo: "otro",
+      variedad: "Infraestructura",
+      superficie_ha: 0,
+      sector: "CASETA",
     },
   ];
 

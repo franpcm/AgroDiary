@@ -324,7 +324,14 @@ export async function indexDiaryEntry(entryId: string): Promise<void> {
     ).run(entryId);
 
     // Para entradas lo almacenamos como un "documento virtual"
-    // No creamos entrada en rag_documentos, solo chunks directos
+    // Ensure the virtual document exists for the FK constraint
+    db.prepare(
+      `
+      INSERT OR IGNORE INTO rag_documentos (id, nombre_archivo, tipo_archivo, titulo, tipo, estado)
+      VALUES ('diary-entries', 'diary-entries', 'virtual', 'Entradas del Diario', 'diario', 'listo')
+    `,
+    ).run();
+
     const embedding = await generateEmbedding(text);
 
     db.prepare(
@@ -372,6 +379,14 @@ export async function indexExistingDocuments(): Promise<number> {
         const text = `${doc.titulo}\n\n${doc.contenido}`;
         const chunks = splitIntoChunks(text);
         const embeddings = await generateEmbeddings(chunks);
+
+        // Ensure the virtual document exists for the FK constraint
+        db.prepare(
+          `
+          INSERT OR IGNORE INTO rag_documentos (id, nombre_archivo, tipo_archivo, titulo, tipo, estado)
+          VALUES ('documentos-ia', 'documentos-ia', 'virtual', 'Documentos IA Legacy', 'legacy', 'listo')
+        `,
+        ).run();
 
         const stmt = db.prepare(`
           INSERT INTO rag_chunks (id, documento_id, fuente_tipo, fuente_id, contenido, chunk_index, embedding)

@@ -178,12 +178,12 @@ export default function DiarioPage() {
 
   return (
     <div className="p-4 sm:p-8 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
             📝 Diario de Actividades
           </h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-gray-500 mt-1 text-sm sm:text-base">
             Registra y consulta las tareas realizadas en la finca
             {currentUser && (
               <span className="ml-2 text-sm">
@@ -203,7 +203,7 @@ export default function DiarioPage() {
             setEditEntry(null);
             setShowForm(true);
           }}
-          className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-semibold transition shadow-lg shadow-green-200 flex items-center gap-2"
+          className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl font-semibold transition shadow-lg shadow-green-200 flex items-center gap-2 shrink-0 self-start sm:self-auto"
         >
           ➕ Nueva Entrada
         </button>
@@ -1077,45 +1077,45 @@ function EntryForm({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b sticky top-0 bg-white rounded-t-2xl z-10">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 border-b sticky top-0 bg-white rounded-t-2xl z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-lg sm:text-xl font-bold">
               {entry ? "✏️ Editar Entrada" : "➕ Nueva Entrada"}
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
+              className="text-gray-400 hover:text-gray-600 text-2xl p-1"
             >
               ✕
             </button>
           </div>
           {/* Audio Recorder */}
-          <div className="mt-3 rounded-xl overflow-hidden border border-blue-200">
+          <div className="mt-2 sm:mt-3 rounded-xl overflow-hidden border border-blue-200">
             {/* Tabs */}
             <div className="flex">
               <button
                 type="button"
                 onClick={() => setAudioMode("field")}
-                className={`flex-1 px-4 py-2 text-sm font-medium transition ${
+                className={`flex-1 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium transition ${
                   audioMode === "field"
                     ? "bg-blue-500 text-white"
                     : "bg-blue-50 text-blue-700 hover:bg-blue-100"
                 }`}
               >
-                🎙️ Dictar por campo
+                🎙️ Dictar campo
               </button>
               <button
                 type="button"
                 onClick={() => setAudioMode("autofill")}
-                className={`flex-1 px-4 py-2 text-sm font-medium transition ${
+                className={`flex-1 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium transition ${
                   audioMode === "autofill"
                     ? "bg-purple-500 text-white"
                     : "bg-purple-50 text-purple-700 hover:bg-purple-100"
                 }`}
               >
-                🪄 Auto-rellenar con audio
+                🪄 Auto-rellenar
               </button>
             </div>
 
@@ -1195,27 +1195,27 @@ function EntryForm({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           {/* Parte de Trabajo: Auto-captura Info Bar */}
-          <div className="bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-2 sm:mb-3">
               <span className="text-lg">📋</span>
-              <h3 className="text-sm font-bold text-emerald-800">
-                Parte de Trabajo — Datos capturados automáticamente
+              <h3 className="text-xs sm:text-sm font-bold text-emerald-800">
+                Parte de Trabajo — Datos automáticos
               </h3>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Hora de inicio */}
-              <div className="bg-white rounded-lg p-3 shadow-sm">
+              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                 <div className="text-xs text-gray-500 mb-1">
-                  🕐 Hora de inicio
+                  🕐 Inicio
                 </div>
-                <div className="font-bold text-emerald-700 text-lg">
+                <div className="font-bold text-emerald-700 text-base sm:text-lg">
                   {horaInicio}
                 </div>
               </div>
               {/* Técnico */}
-              <div className="bg-white rounded-lg p-3 shadow-sm">
+              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                 <div className="text-xs text-gray-500 mb-1">👤 Técnico</div>
                 <div className="font-bold text-emerald-700 flex items-center gap-2">
                   {currentUser ? (
@@ -1241,10 +1241,10 @@ function EntryForm({
                 </div>
               </div>
               {/* GPS */}
-              <div className="bg-white rounded-lg p-3 shadow-sm">
-                <div className="flex items-center justify-between mb-1">
+              <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
+                <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-xs text-gray-500">
-                    📍 Localización GPS
+                    📍 GPS
                   </span>
                   {gpsStatus !== "loading" && (
                     <button
@@ -1252,7 +1252,7 @@ function EntryForm({
                       onClick={() => requestGps()}
                       className="text-xs text-blue-600 hover:text-blue-800 underline"
                     >
-                      🔄 Reintentar
+                      🔄
                     </button>
                   )}
                 </div>
@@ -1345,7 +1345,7 @@ function EntryForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1762,7 +1762,7 @@ function EntryForm({
           </div>
 
           {/* Products and Dose */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 🧪 Productos / Maquinaria
@@ -1948,7 +1948,7 @@ function EntryForm({
 
           {/* Weather */}
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
               <label className="block text-sm font-medium text-gray-700">
                 🌤️ Condiciones meteorológicas
               </label>
@@ -1956,7 +1956,7 @@ function EntryForm({
                 type="button"
                 onClick={fetchWeather}
                 disabled={loadingWeather}
-                className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1 rounded-full transition flex items-center gap-1 disabled:opacity-50"
+                className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1 rounded-full transition flex items-center gap-1 disabled:opacity-50 self-start sm:self-auto"
               >
                 {loadingWeather
                   ? "⏳ Obteniendo..."

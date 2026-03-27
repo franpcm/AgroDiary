@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { resolve } from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -13,7 +12,7 @@ const nextConfig: NextConfig = {
     "word-extractor",
   ],
   turbopack: {
-    root: resolve(__dirname),
+    root: process.cwd(),
   },
   experimental: {
     serverActions: {

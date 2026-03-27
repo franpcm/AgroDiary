@@ -788,7 +788,7 @@ function EntryForm({
   // --- Media: pending files for new entries, existing for edits ---
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingPreviews, setPendingPreviews] = useState<
-    { file: File; url: string; type: "imagen" | "video" }[]
+    { file: File; url: string; type: "imagen" | "video" | "audio" }[]
   >([]);
   const [existingMedia, setExistingMedia] = useState<ArchivoMedia[]>([]);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -818,23 +818,34 @@ function EntryForm({
     if (!files) return;
     setMediaError("");
     const newFiles: File[] = [];
-    const newPreviews: { file: File; url: string; type: "imagen" | "video" }[] =
-      [];
+    const newPreviews: {
+      file: File;
+      url: string;
+      type: "imagen" | "video" | "audio";
+    }[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.size > 50 * 1024 * 1024) {
         setMediaError(`${file.name}: Máximo 50MB`);
         continue;
       }
-      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-        setMediaError(`${file.name}: Solo imágenes y vídeos`);
+      if (
+        !file.type.startsWith("image/") &&
+        !file.type.startsWith("video/") &&
+        !file.type.startsWith("audio/")
+      ) {
+        setMediaError(`${file.name}: Solo imágenes, vídeos y audios`);
         continue;
       }
       newFiles.push(file);
       newPreviews.push({
         file,
         url: URL.createObjectURL(file),
-        type: file.type.startsWith("video/") ? "video" : "imagen",
+        type: file.type.startsWith("video/")
+          ? "video"
+          : file.type.startsWith("audio/")
+            ? "audio"
+            : "imagen",
       });
     }
     setPendingFiles((prev) => [...prev, ...newFiles]);
@@ -1207,9 +1218,7 @@ function EntryForm({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Hora de inicio */}
               <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
-                <div className="text-xs text-gray-500 mb-1">
-                  🕐 Inicio
-                </div>
+                <div className="text-xs text-gray-500 mb-1">🕐 Inicio</div>
                 <div className="font-bold text-emerald-700 text-base sm:text-lg">
                   {horaInicio}
                 </div>
@@ -1243,9 +1252,7 @@ function EntryForm({
               {/* GPS */}
               <div className="bg-white rounded-lg p-2 sm:p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-xs text-gray-500">
-                    📍 GPS
-                  </span>
+                  <span className="text-xs text-gray-500">📍 GPS</span>
                   {gpsStatus !== "loading" && (
                     <button
                       type="button"
@@ -2092,6 +2099,10 @@ function EntryForm({
                         alt={p.file.name}
                         className="w-full h-24 object-cover"
                       />
+                    ) : p.type === "audio" ? (
+                      <div className="w-full h-24 flex items-center justify-center bg-emerald-900">
+                        <span className="text-3xl">🎵</span>
+                      </div>
                     ) : (
                       <div className="w-full h-24 flex items-center justify-center bg-gray-900">
                         <video
@@ -2128,7 +2139,7 @@ function EntryForm({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,video/*"
+                accept="image/*,video/*,audio/*"
                 multiple
                 onChange={(e) => {
                   addFiles(e.target.files);

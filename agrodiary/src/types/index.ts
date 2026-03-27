@@ -219,3 +219,93 @@ export interface DashboardStats {
   actividades_por_tipo: { tipo: TipoActividad; count: number }[];
   actividades_por_cultivo: { cultivo: TipoCultivo; count: number }[];
 }
+
+// ---- Costes Fijos ----
+export interface CosteFijo {
+  id: string;
+  nombre: string;
+  tipo: TipoCosteFijo;
+  categoria: CategoriaCosteFijo;
+  fecha: string; // YYYY-MM-DD
+  importe: number;
+  parcela_ids: string; // JSON array of parcela IDs (dónde se imputa)
+  parcela_nombres?: string; // joined names for display
+  amortizacion_inicio?: number; // year
+  amortizacion_fin?: number; // year
+  periodicidad: Periodicidad;
+  notas?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TipoCosteFijo = "coste" | "ingreso";
+
+export type CategoriaCosteFijo =
+  | "seguro"
+  | "arrendamiento"
+  | "subvencion"
+  | "impuesto"
+  | "amortizacion"
+  | "suministro"
+  | "mantenimiento"
+  | "financiero"
+  | "otro";
+
+export const CATEGORIA_COSTE_LABELS: Record<CategoriaCosteFijo, string> = {
+  seguro: "🛡️ Seguro",
+  arrendamiento: "📄 Arrendamiento",
+  subvencion: "💰 Subvención",
+  impuesto: "🏛️ Impuesto / Tasa",
+  amortizacion: "📉 Amortización",
+  suministro: "⚡ Suministro",
+  mantenimiento: "🔧 Mantenimiento",
+  financiero: "🏦 Coste Financiero",
+  otro: "📦 Otro",
+};
+
+export type Periodicidad = "unico" | "mensual" | "trimestral" | "anual";
+
+export const PERIODICIDAD_LABELS: Record<Periodicidad, string> = {
+  unico: "Único",
+  mensual: "Mensual",
+  trimestral: "Trimestral",
+  anual: "Anual",
+};
+
+// ---- Precios (Personal, Maquinaria, Productos) ----
+export interface Precio {
+  id: string;
+  nombre: string;
+  categoria: CategoriaPrecio;
+  unidad: string; // €/hora, €/kg, €/litro, €/jornada, etc.
+  precio_unitario: number;
+  notas?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CategoriaPrecio =
+  | "personal"
+  | "maquinaria"
+  | "producto"
+  | "servicio"
+  | "otro";
+
+export const CATEGORIA_PRECIO_LABELS: Record<CategoriaPrecio, string> = {
+  personal: "👷 Personal",
+  maquinaria: "🚜 Maquinaria",
+  producto: "🧪 Producto",
+  servicio: "🤝 Servicio externo",
+  otro: "📦 Otro",
+};
+
+export const UNIDADES_PRECIO = [
+  "€/hora",
+  "€/jornada",
+  "€/kg",
+  "€/litro",
+  "€/unidad",
+  "€/ha",
+  "€/mes",
+  "€/año",
+];

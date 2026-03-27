@@ -161,6 +161,150 @@ async function fetchWeatherContext(): Promise<string> {
   }
 }
 
+/**
+ * Obtiene datos de costes fijos y precios para contexto del asistente
+ */
+function fetchCostesContext(): string {
+  try {
+    const db = getDb();
+
+    // Costes fijos
+    const costes = db
+      .prepare(
+        `SELECT cf.nombre, cf.tipo, cf.categoria, cf.fecha, cf.importe, cf.periodicidad,
+                cf.amortizacion_inicio, cf.amortizacion_fin, cf.parcela_ids, cf.notas
+         FROM costes_fijos cf ORDER BY cf.fecha DESC`,
+      )
+      .all() as Array<{
+      nombre: string;
+      tipo: string;
+      categoria: string;
+      fecha: string;
+      importe: number;
+      periodicidad: string;
+      amortizacion_inicio: number | null;
+      amortizacion_fin: number | null;
+      parcela_ids: string;
+      notas: string;
+    }>;
+
+    // Precios
+    const precios = db
+      .prepare(
+        `SELECT nombre, categoria, unidad, precio_unitario, notas
+         FROM precios ORDER BY categoria, nombre`,
+      )
+      .all() as Array<{
+      nombre: string;
+      categoria: string;
+      unidad: string;
+      precio_unitario: number;
+      notas: string;
+    }>;
+
+    // Parcela map for resolving names
+    const parcelas = db.prepare("SELECT id, nombre FROM parcelas").all() as {
+      id: string;
+      nombre: string;
+    }[];
+    const parcelaMap = new Map(parcelas.map((p) => [p.id, p.nombre]));
+
+    if (costes.length === 0 && precios.length === 0) return "";
+
+    let text = "\n\nDATOS ECONÓMICOS DE LA FINCA:";
+
+    // Costes fijos
+    if (costes.length > 0) {
+      text += "\n\n💸 COSTES FIJOS E INGRESOS:";
+      text +=
+        "\nNombre | Tipo | Categoría | Importe | Periodicidad | Amortización | Parcelas | Notas";
+
+      let totalCostes = 0;
+      let totalIngresos = 0;
+      let totalAnualizado = 0;
+
+      for (const c of costes) {
+        let parcelaNames = "—";
+        try {
+          const ids = JSON.parse(c.parcela_ids || "[]");
+          const names = ids
+            .map((id: string) => parcelaMap.get(id))
+            .filter(Boolean);
+          if (names.length > 0) parcelaNames = names.join(", ");
+        } catch {
+          /* ignore */
+        }
+
+        const amort =
+          c.amortizacion_inicio && c.amortizacion_fin
+            ? `${c.amortizacion_inicio}-${c.amortizacion_fin}`
+            : "—";
+
+        text += `\n- ${c.nombre} | ${c.tipo} | ${c.categoria} | ${c.importe.toFixed(2)}€ | ${c.periodicidad} | ${amort} | ${parcelaNames}${c.notas ? " | " + c.notas : ""}`;
+
+        if (c.tipo === "coste") {
+          totalCostes += c.importe;
+          switch (c.periodicidad) {
+            case "mensual":
+              totalAnualizado += c.importe * 12;
+              break;
+            case "trimestral":
+              totalAnualizado += c.importe * 4;
+              break;
+            default:
+              totalAnualizado += c.importe;
+          }
+        } else {
+          totalIngresos += c.importe;
+        }
+      }
+
+      // Total hectáreas
+      const totalHaRow = db
+        .prepare(
+          "SELECT COALESCE(SUM(superficie_ha), 0) as total FROM parcelas WHERE superficie_ha > 0",
+        )
+        .get() as { total: number };
+      const totalHa = totalHaRow.total;
+      const costeMedioHa = totalHa > 0 ? totalAnualizado / totalHa : 0;
+
+      text += `\n\n📊 RESUMEN COSTES:`;
+      text += `\n- Total costes fijos: ${totalCostes.toFixed(2)}€`;
+      text += `\n- Total ingresos/subvenciones: ${totalIngresos.toFixed(2)}€`;
+      text += `\n- Balance: ${(totalIngresos - totalCostes).toFixed(2)}€`;
+      text += `\n- Costes anualizados (ajustando periodicidad): ${totalAnualizado.toFixed(2)}€`;
+      text += `\n- Superficie total: ${totalHa.toFixed(1)} ha`;
+      text += `\n- Coste medio por hectárea (anualizado): ${costeMedioHa.toFixed(2)}€/ha`;
+    }
+
+    // Precios
+    if (precios.length > 0) {
+      text +=
+        "\n\n🏷️ PRECIOS UNITARIOS (Personal, Maquinaria, Productos, Servicios):";
+      text += "\nNombre | Categoría | Precio | Unidad | Notas";
+
+      const categorias: Record<string, { count: number; total: number }> = {};
+      for (const p of precios) {
+        text += `\n- ${p.nombre} | ${p.categoria} | ${p.precio_unitario.toFixed(2)}€ | ${p.unidad}${p.notas ? " | " + p.notas : ""}`;
+        if (!categorias[p.categoria])
+          categorias[p.categoria] = { count: 0, total: 0 };
+        categorias[p.categoria].count++;
+        categorias[p.categoria].total += p.precio_unitario;
+      }
+
+      text += `\n\n📊 RESUMEN PRECIOS:`;
+      for (const [cat, data] of Object.entries(categorias)) {
+        text += `\n- ${cat}: ${data.count} registros, precio medio ${(data.total / data.count).toFixed(2)}€`;
+      }
+    }
+
+    return text;
+  } catch (error) {
+    console.error("Error fetching costes context:", error);
+    return "";
+  }
+}
+
 const SYSTEM_PROMPT = `Eres un asistente agrícola experto especializado en cultivos de Castilla-La Mancha, España.
 La finca que asesoras se llama "Finca del Imperio" y tiene las siguientes plantaciones:
 
@@ -193,8 +337,12 @@ Tu rol es:
 6. Dar recomendaciones basadas en la época del año actual
 7. Consultar y analizar el historial de temperaturas y datos meteorológicos de la finca
 8. Utilizar la ubicación GPS de la finca y de los trabajos registrados para dar contexto geográfico
+9. Analizar costes fijos, ingresos, subvenciones y calcular costes medios por hectárea, amortizaciones, etc.
+10. Consultar precios unitarios de personal, maquinaria, productos y servicios para estimar costes de operaciones
 
 IMPORTANTE: Tienes acceso a datos meteorológicos reales de la finca, incluyendo historial de temperaturas de los últimos 90 días, clima actual y pronóstico a 7 días. Usa estos datos para responder preguntas sobre clima, heladas, temperaturas, precipitaciones, etc. No digas que no tienes acceso a datos de temperatura — SÍ los tienes.
+
+IMPORTANTE: También tienes acceso a los datos económicos de la finca: costes fijos (seguros, arrendamientos, amortizaciones, subvenciones, etc.) y tabla de precios unitarios (personal, maquinaria, productos, servicios). Puedes calcular costes medios por hectárea, estimar costes de operaciones concretas, analizar la rentabilidad, comparar gastos entre periodos, y dar recomendaciones de ahorro. No digas que no tienes datos económicos — SÍ los tienes.
 
 Responde siempre en español. Sé práctico y específico. Si no estás seguro, indícalo.
 Fecha actual: ${new Date().toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`;
@@ -286,9 +434,13 @@ export async function POST(req: NextRequest) {
     // Obtener contexto meteorológico: clima actual, pronóstico e historial de temperaturas
     const weatherContext = await fetchWeatherContext();
 
+    // Obtener contexto de costes y precios
+    const costesContext = fetchCostesContext();
+
     const fullSystemPrompt =
       SYSTEM_PROMPT +
       weatherContext +
+      costesContext +
       ragContext +
       legacyContext +
       recentContext;
@@ -305,6 +457,7 @@ export async function POST(req: NextRequest) {
           docs,
           recentEntries,
           weatherContext,
+          costesContext,
         ),
         source: "local",
       });
@@ -362,8 +515,33 @@ async function generateLocalResponse(
     variedad: string;
   }>,
   weatherContext: string,
+  costesContext: string,
 ): Promise<string> {
   const msgLower = message.toLowerCase();
+
+  // Check if asking about costs, prices, expenses, budget
+  if (
+    msgLower.includes("coste") ||
+    msgLower.includes("costo") ||
+    msgLower.includes("precio") ||
+    msgLower.includes("gasto") ||
+    msgLower.includes("presupuesto") ||
+    msgLower.includes("amortizaci") ||
+    msgLower.includes("seguro") ||
+    msgLower.includes("arrendamiento") ||
+    msgLower.includes("subvenci") ||
+    msgLower.includes("rentabil") ||
+    msgLower.includes("hectárea") ||
+    msgLower.includes("/ha") ||
+    msgLower.includes("económic") ||
+    msgLower.includes("financ") ||
+    msgLower.includes("factur")
+  ) {
+    if (costesContext) {
+      return `💰 **Datos económicos de la finca:**\n\n${costesContext}\n\n---\n*⚠️ Configura tu API key de OpenAI en \`.env.local\` para análisis más detallados y cálculos personalizados.*`;
+    }
+    return "💰 No hay datos económicos registrados todavía. Puedes añadir costes fijos y precios desde la sección **Costes** en el menú lateral.";
+  }
 
   // Check if asking about weather, temperatures, frost, precipitation
   if (

@@ -106,6 +106,35 @@ function initializeDb(db: Database.Database) {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- Costes fijos
+    CREATE TABLE IF NOT EXISTS costes_fijos (
+      id TEXT PRIMARY KEY,
+      nombre TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'coste' CHECK(tipo IN ('coste', 'ingreso')),
+      categoria TEXT NOT NULL DEFAULT 'otro' CHECK(categoria IN ('seguro', 'arrendamiento', 'subvencion', 'impuesto', 'amortizacion', 'suministro', 'mantenimiento', 'financiero', 'otro')),
+      fecha TEXT NOT NULL,
+      importe REAL NOT NULL DEFAULT 0,
+      parcela_ids TEXT DEFAULT '[]',
+      amortizacion_inicio INTEGER DEFAULT NULL,
+      amortizacion_fin INTEGER DEFAULT NULL,
+      periodicidad TEXT NOT NULL DEFAULT 'anual' CHECK(periodicidad IN ('unico', 'mensual', 'trimestral', 'anual')),
+      notas TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Precios (personal, maquinaria, productos, servicios)
+    CREATE TABLE IF NOT EXISTS precios (
+      id TEXT PRIMARY KEY,
+      nombre TEXT NOT NULL,
+      categoria TEXT NOT NULL DEFAULT 'otro' CHECK(categoria IN ('personal', 'maquinaria', 'producto', 'servicio', 'otro')),
+      unidad TEXT NOT NULL DEFAULT '€/hora',
+      precio_unitario REAL NOT NULL DEFAULT 0,
+      notas TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     -- Archivos multimedia
     CREATE TABLE IF NOT EXISTS archivos_media (
       id TEXT PRIMARY KEY,
@@ -171,6 +200,10 @@ function initializeDb(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_rag_chunks_fuente ON rag_chunks(fuente_tipo, fuente_id);
     CREATE INDEX IF NOT EXISTS idx_productos_nombre ON productos_maquinaria(nombre);
     CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos_maquinaria(categoria);
+    CREATE INDEX IF NOT EXISTS idx_costes_fecha ON costes_fijos(fecha);
+    CREATE INDEX IF NOT EXISTS idx_costes_categoria ON costes_fijos(categoria);
+    CREATE INDEX IF NOT EXISTS idx_costes_tipo ON costes_fijos(tipo);
+    CREATE INDEX IF NOT EXISTS idx_precios_categoria ON precios(categoria);
   `);
 
   // Migrate: add usuario_id column if missing (for existing databases)

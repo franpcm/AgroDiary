@@ -5,8 +5,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=agrodiary
-Group=agrodiary
+User=admin01
+Group=admin01
 WorkingDirectory=/opt/agrodiary
 ExecStart=/usr/bin/node /opt/agrodiary/.next/standalone/server.js
 Restart=always
@@ -21,9 +21,6 @@ EnvironmentFile=-/opt/agrodiary/.env.local
 
 # Seguridad
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/agrodiary/data /opt/agrodiary/public/uploads /opt/agrodiary/backups
 
 # Límites
 LimitNOFILE=65536

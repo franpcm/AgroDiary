@@ -11,6 +11,9 @@ NC='\033[0m'
 
 cd "$APP_DIR"
 
+echo -e "${GREEN}[0/4] Limpiando build anterior...${NC}"
+rm -rf .next
+
 echo -e "${GREEN}[1/4] Instalando dependencias...${NC}"
 npm ci --production=false
 

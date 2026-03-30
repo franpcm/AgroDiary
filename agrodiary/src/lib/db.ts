@@ -21,6 +21,10 @@ export function getDb(): Database.Database {
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
+    db.pragma("synchronous = NORMAL");    // Safe with WAL, 2-3x faster writes
+    db.pragma("cache_size = -64000");     // 64MB page cache
+    db.pragma("temp_store = MEMORY");     // Temp tables in memory
+    db.pragma("mmap_size = 268435456");   // 256MB memory-mapped I/O
     initializeDb(db);
   }
   return db;

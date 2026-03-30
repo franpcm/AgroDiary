@@ -5,20 +5,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { v4 as uuid } from "uuid";
 import path from "path";
-import fs from "fs";
+import { mkdir, writeFile, unlink } from "fs/promises";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
 // Ensure upload directory exists
-function ensureUploadDir() {
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  }
+async function ensureUploadDir() {
+  await mkdir(UPLOAD_DIR, { recursive: true });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    ensureUploadDir();
+    await ensureUploadDir();
     const db = getDb();
 
     const formData = await req.formData();
@@ -61,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     // Write file
     const bytes = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(bytes));
+    await writeFile(filePath, Buffer.from(bytes));
 
     const url = `/uploads/${fileName}`;
 
@@ -139,9 +137,7 @@ export async function DELETE(req: NextRequest) {
       .get(id) as { url: string } | undefined;
     if (file) {
       const filePath = path.join(process.cwd(), "public", file.url);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      await unlink(filePath).catch(() => {});
     }
 
     db.prepare("DELETE FROM archivos_media WHERE id = ?").run(id);

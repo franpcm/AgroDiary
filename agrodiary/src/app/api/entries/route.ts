@@ -35,18 +35,27 @@ export async function GET(req: NextRequest) {
     const cultivo = url.searchParams.get("cultivo");
     const desde = url.searchParams.get("desde");
     const hasta = url.searchParams.get("hasta");
+    const busqueda = url.searchParams.get("busqueda");
     const limit = parseInt(url.searchParams.get("limit") || "100");
     const offset = parseInt(url.searchParams.get("offset") || "0");
 
     let query = `
       SELECT e.*, p.nombre as parcela_nombre, p.cultivo,
              u.nombre as usuario_nombre, u.avatar_color as usuario_color,
-             (SELECT COUNT(*) FROM comentarios c WHERE c.entrada_id = e.id) as comentarios_count,
-             (SELECT COUNT(*) FROM archivos_media am WHERE am.entrada_id = e.id) as archivos_count,
-             (SELECT am2.url FROM archivos_media am2 WHERE am2.entrada_id = e.id AND am2.tipo = 'imagen' ORDER BY am2.created_at ASC LIMIT 1) as primera_foto
+             COALESCE(cc.cnt, 0) as comentarios_count,
+             COALESCE(ac.cnt, 0) as archivos_count,
+             af.url as primera_foto
       FROM entradas_diario e
       LEFT JOIN parcelas p ON e.parcela_id = p.id
       LEFT JOIN usuarios u ON e.usuario_id = u.id
+      LEFT JOIN (SELECT entrada_id, COUNT(*) as cnt FROM comentarios GROUP BY entrada_id) cc ON cc.entrada_id = e.id
+      LEFT JOIN (SELECT entrada_id, COUNT(*) as cnt FROM archivos_media GROUP BY entrada_id) ac ON ac.entrada_id = e.id
+      LEFT JOIN (
+        SELECT entrada_id, url, MIN(created_at) as min_created
+        FROM archivos_media
+        WHERE tipo = 'imagen'
+        GROUP BY entrada_id
+      ) af ON af.entrada_id = e.id
       WHERE 1=1
     `;
     const params: Record<string, string | number> = {};
@@ -74,6 +83,14 @@ export async function GET(req: NextRequest) {
     if (hasta) {
       query += " AND e.fecha <= @hasta";
       params.hasta = hasta;
+    }
+    if (busqueda) {
+      query += ` AND (e.descripcion LIKE '%' || @busqueda || '%'
+        OR e.resultado LIKE '%' || @busqueda || '%'
+        OR e.productos_usados LIKE '%' || @busqueda || '%'
+        OR e.notas LIKE '%' || @busqueda || '%'
+        OR p.nombre LIKE '%' || @busqueda || '%')`;
+      params.busqueda = busqueda;
     }
 
     query +=
@@ -113,6 +130,14 @@ export async function GET(req: NextRequest) {
     if (hasta) {
       countQuery += " AND e.fecha <= @hasta";
       countParams.hasta = hasta;
+    }
+    if (busqueda) {
+      countQuery += ` AND (e.descripcion LIKE '%' || @busqueda || '%'
+        OR e.resultado LIKE '%' || @busqueda || '%'
+        OR e.productos_usados LIKE '%' || @busqueda || '%'
+        OR e.notas LIKE '%' || @busqueda || '%'
+        OR p.nombre LIKE '%' || @busqueda || '%')`;
+      countParams.busqueda = busqueda;
     }
 
     const total = db.prepare(countQuery).get(countParams) as { total: number };
@@ -332,6 +357,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 });
     }
 
+    db.prepare("DELETE FROM rag_chunks WHERE fuente_tipo = 'entrada_diario' AND fuente_id = ?").run(id);
     db.prepare("DELETE FROM entradas_diario WHERE id = ?").run(id);
     return NextResponse.json({ success: true });
   } catch (error) {

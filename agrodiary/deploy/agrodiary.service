@@ -1,0 +1,34 @@
+[Unit]
+Description=AgroDiary - Cuaderno de Campo Digital
+Documentation=https://github.com/tu-repo/agrodiary
+After=network.target
+
+[Service]
+Type=simple
+User=admin01
+Group=admin01
+WorkingDirectory=/opt/agrodiary
+ExecStart=/usr/bin/node /opt/agrodiary/.next/standalone/server.js
+Restart=always
+RestartSec=5
+
+# Variables de entorno
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=0.0.0.0
+Environment=TZ=Europe/Madrid
+EnvironmentFile=-/opt/agrodiary/.env.local
+
+# Seguridad
+NoNewPrivileges=true
+
+# Límites
+LimitNOFILE=65536
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=agrodiary
+
+[Install]
+WantedBy=multi-user.target

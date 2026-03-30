@@ -17,8 +17,10 @@ export default function ExportarPage() {
     // Default: last 3 months
     const now = new Date();
     const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-    setDesde(threeMonthsAgo.toISOString().split("T")[0]);
-    setHasta(now.toISOString().split("T")[0]);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setDesde(fmt(threeMonthsAgo));
+    setHasta(fmt(now));
   }, []);
 
   const generateUrl = () => {
@@ -38,8 +40,10 @@ export default function ExportarPage() {
   const setPreset = (months: number) => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth() - months, 1);
-    setDesde(start.toISOString().split("T")[0]);
-    setHasta(now.toISOString().split("T")[0]);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setDesde(fmt(start));
+    setHasta(fmt(now));
   };
 
   const setAno = (year: number) => {

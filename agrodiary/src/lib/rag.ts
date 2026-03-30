@@ -50,10 +50,17 @@ export interface SearchResult {
 }
 
 // ---- Funciones de OpenAI ----
+let openaiClient: OpenAI | null | undefined = undefined;
+
 function getOpenAI(): OpenAI | null {
+  if (openaiClient !== undefined) return openaiClient;
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || apiKey === "tu-api-key-aqui") return null;
-  return new OpenAI({ apiKey });
+  if (!apiKey || apiKey === "tu-api-key-aqui") {
+    openaiClient = null;
+    return null;
+  }
+  openaiClient = new OpenAI({ apiKey });
+  return openaiClient;
 }
 
 async function generateEmbedding(text: string): Promise<number[] | null> {
@@ -257,6 +264,7 @@ export async function processDocument(
     });
 
     insertAll();
+    invalidateEmbeddingCache();
 
     // Actualizar estado del documento
     if (fuenteTipo === "documento") {
@@ -324,7 +332,14 @@ export async function indexDiaryEntry(entryId: string): Promise<void> {
     ).run(entryId);
 
     // Para entradas lo almacenamos como un "documento virtual"
-    // No creamos entrada en rag_documentos, solo chunks directos
+    // Ensure the virtual document exists for the FK constraint
+    db.prepare(
+      `
+      INSERT OR IGNORE INTO rag_documentos (id, nombre_archivo, tipo_archivo, titulo, tipo, estado)
+      VALUES ('diary-entries', 'diary-entries', 'virtual', 'Entradas del Diario', 'diario', 'listo')
+    `,
+    ).run();
+
     const embedding = await generateEmbedding(text);
 
     db.prepare(
@@ -341,6 +356,7 @@ export async function indexDiaryEntry(entryId: string): Promise<void> {
       chunk_index: 0,
       embedding: embedding ? JSON.stringify(embedding) : "",
     });
+    invalidateEmbeddingCache();
   } catch (error) {
     console.error("Error indexando entrada de diario:", error);
   }
@@ -373,6 +389,14 @@ export async function indexExistingDocuments(): Promise<number> {
         const chunks = splitIntoChunks(text);
         const embeddings = await generateEmbeddings(chunks);
 
+        // Ensure the virtual document exists for the FK constraint
+        db.prepare(
+          `
+          INSERT OR IGNORE INTO rag_documentos (id, nombre_archivo, tipo_archivo, titulo, tipo, estado)
+          VALUES ('documentos-ia', 'documentos-ia', 'virtual', 'Documentos IA Legacy', 'legacy', 'listo')
+        `,
+        ).run();
+
         const stmt = db.prepare(`
           INSERT INTO rag_chunks (id, documento_id, fuente_tipo, fuente_id, contenido, chunk_index, embedding)
           VALUES (@id, @documento_id, @fuente_tipo, @fuente_id, @contenido, @chunk_index, @embedding)
@@ -403,6 +427,17 @@ export async function indexExistingDocuments(): Promise<number> {
   }
 }
 
+// Cache for parsed embeddings to avoid re-parsing JSON on every search
+let embeddingCache: {
+  chunks: { contenido: string; fuente_tipo: string; fuente_id: string; titulo?: string; embedding: number[] }[];
+  timestamp: number;
+} | null = null;
+const EMBEDDING_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export function invalidateEmbeddingCache(): void {
+  embeddingCache = null;
+}
+
 // ---- Búsqueda semántica ----
 export async function searchKnowledgeBase(
   query: string,
@@ -418,36 +453,50 @@ export async function searchKnowledgeBase(
     return fallbackTextSearch(query, topK);
   }
 
-  // Obtener todos los chunks con embeddings
-  const chunks = db
-    .prepare(
-      `
-    SELECT c.contenido, c.fuente_tipo, c.fuente_id, c.embedding,
-           d.titulo
-    FROM rag_chunks c
-    LEFT JOIN rag_documentos d ON c.documento_id = d.id
-    WHERE c.embedding != ''
-  `,
-    )
-    .all() as (RagChunk & { titulo?: string })[];
+  // Use cached parsed embeddings instead of re-parsing JSON every query
+  if (!embeddingCache || Date.now() - embeddingCache.timestamp > EMBEDDING_CACHE_TTL) {
+    const rawChunks = db
+      .prepare(
+        `
+      SELECT c.contenido, c.fuente_tipo, c.fuente_id, c.embedding,
+             d.titulo
+      FROM rag_chunks c
+      LEFT JOIN rag_documentos d ON c.documento_id = d.id
+      WHERE c.embedding != ''
+    `,
+      )
+      .all() as (RagChunk & { titulo?: string })[];
 
-  // Calcular similitud
-  const scored: SearchResult[] = [];
-  for (const chunk of chunks) {
-    try {
-      const chunkEmbedding = JSON.parse(chunk.embedding);
-      const similarity = cosineSimilarity(queryEmbedding, chunkEmbedding);
-      scored.push({
-        contenido: chunk.contenido,
-        fuente_tipo: chunk.fuente_tipo,
-        fuente_id: chunk.fuente_id,
-        titulo: chunk.titulo || undefined,
-        similarity,
-      });
-    } catch {
-      // Skip chunks con embeddings inválidos
-    }
+    embeddingCache = {
+      chunks: rawChunks
+        .map((chunk) => {
+          try {
+            return {
+              contenido: chunk.contenido,
+              fuente_tipo: chunk.fuente_tipo,
+              fuente_id: chunk.fuente_id,
+              titulo: chunk.titulo || undefined,
+              embedding: JSON.parse(chunk.embedding),
+            };
+          } catch {
+            return null;
+          }
+        })
+        .filter(
+          (c): c is NonNullable<typeof c> => c !== null,
+        ),
+      timestamp: Date.now(),
+    };
   }
+
+  // Calcular similitud using cached parsed embeddings
+  const scored: SearchResult[] = embeddingCache.chunks.map((chunk) => ({
+    contenido: chunk.contenido,
+    fuente_tipo: chunk.fuente_tipo,
+    fuente_id: chunk.fuente_id,
+    titulo: chunk.titulo || undefined,
+    similarity: cosineSimilarity(queryEmbedding, chunk.embedding),
+  }));
 
   // Ordenar por similitud y devolver top-K
   scored.sort((a, b) => b.similarity - a.similarity);
@@ -464,30 +513,41 @@ function fallbackTextSearch(query: string, topK: number): SearchResult[] {
 
   if (words.length === 0) return [];
 
-  // Buscar en chunks
-  const allChunks = db
+  // Use SQLite LIKE for pre-filtering instead of loading all rows
+  const likeConditions = words.map((_, i) => `LOWER(c.contenido) LIKE '%' || @word${i} || '%'`);
+  const params: Record<string, string> = {};
+  words.forEach((w, i) => {
+    params[`word${i}`] = w;
+  });
+
+  const chunks = db
     .prepare(
       `
-    SELECT c.contenido, c.fuente_tipo, c.fuente_id,
-           d.titulo
+    SELECT c.contenido, c.fuente_tipo, c.fuente_id, d.titulo
     FROM rag_chunks c
     LEFT JOIN rag_documentos d ON c.documento_id = d.id
+    WHERE ${likeConditions.join(' OR ')}
+    LIMIT ${topK * 3}
   `,
     )
-    .all() as (RagChunk & { titulo?: string })[];
+    .all(params) as (RagChunk & { titulo?: string })[];
 
-  // También buscar en documentos_ia legacy
+  // Also search in legacy documentos_ia
+  const legacyLikeConditions = words.map((_, i) => `LOWER(titulo || ' ' || contenido) LIKE '%' || @word${i} || '%'`);
   const legacyDocs = db
-    .prepare("SELECT titulo, contenido FROM documentos_ia")
-    .all() as {
-    titulo: string;
-    contenido: string;
-  }[];
+    .prepare(
+      `
+    SELECT titulo, contenido FROM documentos_ia
+    WHERE ${legacyLikeConditions.join(' OR ')}
+    LIMIT ${topK * 3}
+  `,
+    )
+    .all(params) as { titulo: string; contenido: string }[];
 
   const results: SearchResult[] = [];
 
-  // Puntuar chunks por coincidencia de palabras
-  for (const chunk of allChunks) {
+  // Score chunks by word match count
+  for (const chunk of chunks) {
     const text = chunk.contenido.toLowerCase();
     const matches = words.filter((w) => text.includes(w)).length;
     if (matches > 0) {
@@ -501,7 +561,7 @@ function fallbackTextSearch(query: string, topK: number): SearchResult[] {
     }
   }
 
-  // También buscar en documentos_ia legacy (por compatibilidad)
+  // Score legacy docs
   for (const doc of legacyDocs) {
     const text = (doc.titulo + " " + doc.contenido).toLowerCase();
     const matches = words.filter((w) => text.includes(w)).length;

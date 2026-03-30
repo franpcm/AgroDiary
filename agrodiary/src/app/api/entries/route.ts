@@ -19,6 +19,10 @@ const FIELD_LABELS: Record<string, string> = {
   resultado: "Resultado",
   valoracion: "Valoración",
   notas: "Notas",
+  hora_inicio: "Hora de inicio",
+  hora_fin: "Hora de fin",
+  gps_lat: "Latitud GPS",
+  gps_lng: "Longitud GPS",
 };
 
 export async function GET(req: NextRequest) {
@@ -28,18 +32,30 @@ export async function GET(req: NextRequest) {
     const fecha = url.searchParams.get("fecha");
     const parcela_id = url.searchParams.get("parcela_id");
     const tipo = url.searchParams.get("tipo");
+    const cultivo = url.searchParams.get("cultivo");
     const desde = url.searchParams.get("desde");
     const hasta = url.searchParams.get("hasta");
+    const busqueda = url.searchParams.get("busqueda");
     const limit = parseInt(url.searchParams.get("limit") || "100");
     const offset = parseInt(url.searchParams.get("offset") || "0");
 
     let query = `
       SELECT e.*, p.nombre as parcela_nombre, p.cultivo,
              u.nombre as usuario_nombre, u.avatar_color as usuario_color,
-             (SELECT COUNT(*) FROM comentarios c WHERE c.entrada_id = e.id) as comentarios_count
+             COALESCE(cc.cnt, 0) as comentarios_count,
+             COALESCE(ac.cnt, 0) as archivos_count,
+             af.url as primera_foto
       FROM entradas_diario e
       LEFT JOIN parcelas p ON e.parcela_id = p.id
       LEFT JOIN usuarios u ON e.usuario_id = u.id
+      LEFT JOIN (SELECT entrada_id, COUNT(*) as cnt FROM comentarios GROUP BY entrada_id) cc ON cc.entrada_id = e.id
+      LEFT JOIN (SELECT entrada_id, COUNT(*) as cnt FROM archivos_media GROUP BY entrada_id) ac ON ac.entrada_id = e.id
+      LEFT JOIN (
+        SELECT entrada_id, url, MIN(created_at) as min_created
+        FROM archivos_media
+        WHERE tipo = 'imagen'
+        GROUP BY entrada_id
+      ) af ON af.entrada_id = e.id
       WHERE 1=1
     `;
     const params: Record<string, string | number> = {};
@@ -56,6 +72,10 @@ export async function GET(req: NextRequest) {
       query += " AND e.tipo_actividad = @tipo";
       params.tipo = tipo;
     }
+    if (cultivo) {
+      query += " AND p.cultivo = @cultivo";
+      params.cultivo = cultivo;
+    }
     if (desde) {
       query += " AND e.fecha >= @desde";
       params.desde = desde;
@@ -63,6 +83,14 @@ export async function GET(req: NextRequest) {
     if (hasta) {
       query += " AND e.fecha <= @hasta";
       params.hasta = hasta;
+    }
+    if (busqueda) {
+      query += ` AND (e.descripcion LIKE '%' || @busqueda || '%'
+        OR e.resultado LIKE '%' || @busqueda || '%'
+        OR e.productos_usados LIKE '%' || @busqueda || '%'
+        OR e.notas LIKE '%' || @busqueda || '%'
+        OR p.nombre LIKE '%' || @busqueda || '%')`;
+      params.busqueda = busqueda;
     }
 
     query +=
@@ -74,7 +102,9 @@ export async function GET(req: NextRequest) {
 
     // Get total count
     let countQuery = `
-      SELECT COUNT(*) as total FROM entradas_diario e WHERE 1=1
+      SELECT COUNT(*) as total FROM entradas_diario e
+      LEFT JOIN parcelas p ON e.parcela_id = p.id
+      WHERE 1=1
     `;
     const countParams: Record<string, string> = {};
     if (fecha) {
@@ -89,6 +119,10 @@ export async function GET(req: NextRequest) {
       countQuery += " AND e.tipo_actividad = @tipo";
       countParams.tipo = tipo;
     }
+    if (cultivo) {
+      countQuery += " AND p.cultivo = @cultivo";
+      countParams.cultivo = cultivo;
+    }
     if (desde) {
       countQuery += " AND e.fecha >= @desde";
       countParams.desde = desde;
@@ -96,6 +130,14 @@ export async function GET(req: NextRequest) {
     if (hasta) {
       countQuery += " AND e.fecha <= @hasta";
       countParams.hasta = hasta;
+    }
+    if (busqueda) {
+      countQuery += ` AND (e.descripcion LIKE '%' || @busqueda || '%'
+        OR e.resultado LIKE '%' || @busqueda || '%'
+        OR e.productos_usados LIKE '%' || @busqueda || '%'
+        OR e.notas LIKE '%' || @busqueda || '%'
+        OR p.nombre LIKE '%' || @busqueda || '%')`;
+      countParams.busqueda = busqueda;
     }
 
     const total = db.prepare(countQuery).get(countParams) as { total: number };
@@ -121,10 +163,12 @@ export async function POST(req: NextRequest) {
     const stmt = db.prepare(`
       INSERT INTO entradas_diario (id, fecha, parcela_id, tipo_actividad, descripcion, 
         usuario_id, realizado_por, productos_usados, dosis, condiciones_meteo, resultado, 
-        valoracion, fotos, notas, created_at, updated_at)
+        valoracion, fotos, notas, hora_inicio, hora_fin, gps_lat, gps_lng, gps_accuracy,
+        created_at, updated_at)
       VALUES (@id, @fecha, @parcela_id, @tipo_actividad, @descripcion,
         @usuario_id, @realizado_por, @productos_usados, @dosis, @condiciones_meteo, @resultado,
-        @valoracion, @fotos, @notas, @created_at, @updated_at)
+        @valoracion, @fotos, @notas, @hora_inicio, @hora_fin, @gps_lat, @gps_lng, @gps_accuracy,
+        @created_at, @updated_at)
     `);
 
     stmt.run({
@@ -142,6 +186,11 @@ export async function POST(req: NextRequest) {
       valoracion: body.valoracion || 0,
       fotos: JSON.stringify(body.fotos || []),
       notas: body.notas || "",
+      hora_inicio: body.hora_inicio || "",
+      hora_fin: body.hora_fin || "",
+      gps_lat: body.gps_lat ?? null,
+      gps_lng: body.gps_lng ?? null,
+      gps_accuracy: body.gps_accuracy ?? null,
       created_at: now,
       updated_at: now,
     });
@@ -239,6 +288,11 @@ export async function PUT(req: NextRequest) {
         resultado = @resultado,
         valoracion = @valoracion,
         notas = @notas,
+        hora_inicio = @hora_inicio,
+        hora_fin = @hora_fin,
+        gps_lat = @gps_lat,
+        gps_lng = @gps_lng,
+        gps_accuracy = @gps_accuracy,
         updated_at = @updated_at
       WHERE id = @id
     `);
@@ -257,6 +311,11 @@ export async function PUT(req: NextRequest) {
       resultado: body.resultado || "",
       valoracion: body.valoracion || 0,
       notas: body.notas || "",
+      hora_inicio: body.hora_inicio || "",
+      hora_fin: body.hora_fin || "",
+      gps_lat: body.gps_lat ?? null,
+      gps_lng: body.gps_lng ?? null,
+      gps_accuracy: body.gps_accuracy ?? null,
       updated_at: new Date().toISOString(),
     });
 
@@ -298,6 +357,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 });
     }
 
+    db.prepare("DELETE FROM rag_chunks WHERE fuente_tipo = 'entrada_diario' AND fuente_id = ?").run(id);
     db.prepare("DELETE FROM entradas_diario WHERE id = ?").run(id);
     return NextResponse.json({ success: true });
   } catch (error) {

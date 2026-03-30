@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   reactCompiler: true,
+  allowedDevOrigins: ["fran.tail708413.ts.net"],
   serverExternalPackages: [
     "better-sqlite3",
     "pdf-parse",
@@ -9,6 +11,9 @@ const nextConfig: NextConfig = {
     "mammoth",
     "word-extractor",
   ],
+  turbopack: {
+    root: process.cwd(),
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",

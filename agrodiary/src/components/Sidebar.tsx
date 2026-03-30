@@ -19,6 +19,21 @@ const NAV_ITEMS = [
   { href: "/exportar", label: "Cuaderno de Campo", icon: "📋" },
 ];
 
+const COSTES_ITEMS = [
+  {
+    href: "/costes/precios",
+    label: "Precios",
+    sub: "Personal, máquinas, productos...",
+    icon: "🏷️",
+  },
+  {
+    href: "/costes/fijos",
+    label: "Costes fijos",
+    sub: "Seguros, arrendamientos...",
+    icon: "🏦",
+  },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { users, currentUser, setCurrentUser, refreshUsers } = useUser();
@@ -27,6 +42,7 @@ export default function Sidebar() {
   const [newUserName, setNewUserName] = useState("");
   const [newUserColor, setNewUserColor] = useState(AVATAR_COLORS[0]);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [costesOpen, setCostesOpen] = useState(pathname.startsWith("/costes"));
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -133,7 +149,7 @@ export default function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4">
+        <nav className="flex-1 p-4 overflow-y-auto">
           <ul className="space-y-1">
             {NAV_ITEMS.map((item) => {
               const isActive =
@@ -155,6 +171,55 @@ export default function Sidebar() {
                 </li>
               );
             })}
+
+            {/* Costes section with submenu */}
+            <li>
+              <button
+                onClick={() => setCostesOpen(!costesOpen)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  pathname.startsWith("/costes")
+                    ? "bg-white/20 text-white font-semibold shadow-md"
+                    : "text-green-200 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span className="text-xl">💰</span>
+                <span className="flex-1 text-left">Costes</span>
+                <span
+                  className={`text-xs transition-transform duration-200 ${
+                    costesOpen ? "rotate-180" : ""
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+              {costesOpen && (
+                <ul className="ml-4 mt-1 space-y-0.5">
+                  {COSTES_ITEMS.map((item) => {
+                    const isActive = pathname === item.href;
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 ${
+                            isActive
+                              ? "bg-white/20 text-white font-semibold"
+                              : "text-green-200/80 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          <span className="text-lg">{item.icon}</span>
+                          <div className="min-w-0">
+                            <span className="text-sm">{item.label}</span>
+                            <p className="text-[10px] text-green-300/60 truncate leading-tight">
+                              {item.sub}
+                            </p>
+                          </div>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
           </ul>
         </nav>
 

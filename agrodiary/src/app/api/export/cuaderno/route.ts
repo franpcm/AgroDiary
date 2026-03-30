@@ -56,6 +56,10 @@ export async function GET(request: NextRequest) {
     resultado: string;
     notas: string;
     usuario_nombre: string;
+    hora_inicio: string;
+    hora_fin: string;
+    gps_lat: number | null;
+    gps_lng: number | null;
   }[];
 
   // Get farm info
@@ -254,6 +258,7 @@ export async function GET(request: NextRequest) {
       <thead>
         <tr>
           <th>Fecha</th>
+          <th>Horario</th>
           <th>Parcela</th>
           <th>Cultivo</th>
           <th>Actividad</th>
@@ -270,13 +275,14 @@ export async function GET(request: NextRequest) {
           .map(
             ([month, monthEntries]) => `
           <tr class="month-header">
-            <td colspan="10">${new Date(month + "-01").toLocaleDateString("es-ES", { month: "long", year: "numeric" })} — ${monthEntries.length} registros</td>
+            <td colspan="11">${new Date(month + "-01").toLocaleDateString("es-ES", { month: "long", year: "numeric" })} — ${monthEntries.length} registros</td>
           </tr>
           ${monthEntries
             .map(
               (e) => `
             <tr>
               <td style="white-space:nowrap;">${e.fecha}</td>
+              <td style="white-space:nowrap; font-size:8pt;">${e.hora_inicio ? `${e.hora_inicio}${e.hora_fin ? ` → ${e.hora_fin}` : ""}` : "—"}</td>
               <td>${e.parcela_nombre}</td>
               <td><span class="badge badge-${e.cultivo}">${e.variedad}</span></td>
               <td>${ACTIVIDAD_LABELS[e.tipo_actividad] || e.tipo_actividad}</td>

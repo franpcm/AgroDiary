@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -134,7 +135,27 @@ export default function AsistentePage() {
                     {msg.role === 'assistant' && (
                       <div className="text-xs text-gray-400 mb-1">🤖 Asistente</div>
                     )}
-                    <div className="chat-content whitespace-pre-wrap">{msg.content}</div>
+                    <div className="chat-content whitespace-pre-wrap">
+                      {msg.role === 'assistant' ? (
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                            strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2">{children}</ol>,
+                            li: ({ children }) => <li className="mb-1">{children}</li>,
+                            h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-base font-bold mb-2">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
+                            code: ({ children }) => <code className="bg-gray-100 px-1 rounded text-sm">{children}</code>,
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      ) : (
+                        msg.content
+                      )}
+                    </div>
                     <div className="text-xs text-gray-400 mt-2">
                       {new Date(msg.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                     </div>
